@@ -36,21 +36,25 @@ METEO_URL = "http://api.met.no/weatherapi/locationforecastlts/1.3/?lat={};lon={}
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "coordinates",
-        nargs="+"
+        "address",
+        nargs="+",
+        help="address string for which to get weather forecast"
     )
 
     parser.add_argument(
-        "-a", "--address",
+        "-c", "--coordinates",
         action="store_true",
         default=False,
-        help="use address instead of coordinates"
+        help="use coordinates instead of an address"
     )
 
     return parser.parse_args()
 
 
 def geocode(query, api_key):
+    """
+    Get latitude and longitude for given address.
+    """
     response = requests.get(MAPS_URL.format(query, api_key))
 
     bsoup = BeautifulSoup(response.content, "html.parser")
@@ -59,9 +63,12 @@ def geocode(query, api_key):
 
 
 def reverse_geocode(namespace, api_key):
+    """
+    Get address for given latitude and longitude.
+    """
     response = requests.get(MAPS_URL.format(
         "{},{}".format(
-            namespace.coordinates[0], namespace.coordinates[1]
+            namespace.address[0], namespace.address[1]
             ), api_key)
         )
 
@@ -71,9 +78,9 @@ def reverse_geocode(namespace, api_key):
 
 def get_met_data(namespace):
     """
-    Fetch meteodata from API
+    Fetch meteodata from API.
     """
-    url = METEO_URL.format(namespace.coordinates[0], namespace.coordinates[1])
+    url = METEO_URL.format(namespace.address[0], namespace.address[1])
     response = requests.get(url)
 
     bsoup = BeautifulSoup(response.content, "html.parser")
@@ -175,7 +182,7 @@ def plot_with_plotly(namespace, soup):
         yaxis=dict(
             title="Temperature in °C"
         ),
-        title="Weather in <b>{}</b> ({}, {})".format(namespace.name, namespace.coordinates[0], namespace.coordinates[1])
+        title="Weather for <b>{}</b> ({}, {})".format(namespace.location, namespace.address[0], namespace.address[1])
     )
 
     data = []
@@ -190,12 +197,16 @@ def plot_with_plotly(namespace, soup):
 
 if __name__ == "__main__":
     namespace = parse_arguments()
+    print(namespace)
     
-    if namespace.address:
-        setattr(namespace, "name", " ".join(namespace.coordinates))
-        setattr(namespace, "coordinates", geocode("+".join(namespace.coordinates), GEOCODING_API_KEY))
+    if namespace.coordinates:
+        setattr(namespace, "location", reverse_geocode(namespace, GEOCODING_API_KEY))
+        
     else:
-        setattr(namespace, "name", reverse_geocode(namespace, GEOCODING_API_KEY))
+        setattr(namespace, "location", " ".join(namespace.address))
+        setattr(namespace, "address", geocode("+".join(namespace.address), GEOCODING_API_KEY))
+
+    print(namespace)
 
     soup = get_met_data(namespace)
     plot_with_plotly(namespace, soup)
