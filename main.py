@@ -1,11 +1,13 @@
+#!/usr/bin/env python3
 """
-Get Your Own Damn Weather™
+Meteograph
 
 @author: Gabriela Kandova
 Inspired by Klara weather app.
 """
 
 # module imports
+import argparse
 from datetime import datetime
 
 import plotly as py
@@ -15,45 +17,71 @@ from bs4 import BeautifulSoup
 
 import requests
 
-# 49.210722, 16.594185
-LOCATION = "Brno"
-LATITUDE = "49.210722"
-LONGITUDE = "16.594185"
-URL = "http://api.met.no/weatherapi/locationforecastlts/1.3/?lat={};lon={}".format(
-    LATITUDE, LONGITUDE
-    )
-
-FORMAT = "%Y-%m-%dT%XZ"
-
 # debug flags
 PRINT_DEBUG = False
-SOUP_DEBUG = False
 DRAW_PLOT = True
 
+# 49.210722, 16.594185
+# NAME = "Brno"
 
-def get_met_data():
+# datetime format
+FORMAT = "%Y-%m-%dT%XZ"
+
+MAPS_URL = "https://maps.googleapis.com/maps/api/geocode/xml?address={}&key={}"
+GEOCODING_API_KEY = "AIzaSyA4WbItbP-Gjde9H0v-e7uB8bK4vtkJkxM"
+
+METEO_URL = "http://api.met.no/weatherapi/locationforecastlts/1.3/?lat={};lon={}"
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "coordinates",
+        nargs="+"
+    )
+
+    parser.add_argument(
+        "-a", "--address",
+        action="store_true",
+        default=False,
+        help="use address instead of coordinates"
+    )
+
+    return parser.parse_args()
+
+
+def geocode(query, api_key):
+    response = requests.get(MAPS_URL.format(query, api_key))
+
+    bsoup = BeautifulSoup(response.content, "html.parser")
+    
+    return [bsoup.find("lat").string, bsoup.find("lng").string]
+
+
+def reverse_geocode(namespace, api_key):
+    response = requests.get(MAPS_URL.format(
+        "{},{}".format(
+            namespace.coordinates[0], namespace.coordinates[1]
+            ), api_key)
+        )
+
+    bsoup = BeautifulSoup(response.content, "html.parser")
+    return bsoup.find_all("address_component")[5].contents[1].string
+    
+
+def get_met_data(namespace):
     """
     Fetch meteodata from API
     """
-    response = requests.get(URL)
+    url = METEO_URL.format(namespace.coordinates[0], namespace.coordinates[1])
+    response = requests.get(url)
 
-    if SOUP_DEBUG:
-        with open("soup.html", "w") as file:
-            file.write(response.text)
-
-    return response
-
-
-def parse_response(response):
-    """
-    Parse resulting XML
-    """
     bsoup = BeautifulSoup(response.content, "html.parser")
 
     return bsoup
 
 
-def get_temperatures(trace_data):
+def get_temperatures(trace_data, soup):
     """
     Searches the XML tree for (time, temperature) data.
     """
@@ -61,7 +89,7 @@ def get_temperatures(trace_data):
     if PRINT_DEBUG:
         print("\nTEMPERATURE\n")
 
-    temperatures = SOUP.find_all("temperature")
+    temperatures = soup.find_all("temperature")
     x = list()
     y = list()
     for data in temperatures:
@@ -87,16 +115,13 @@ def get_temperatures(trace_data):
     trace_data.append(trace)
 
 
-def get_precipitation(trace_data):
+def get_precipitation(trace_data, soup):
     """
     Searches the XML tree for (time, temperature) data.
     """
 
-    precipitation = SOUP.find_all("precipitation")
+    precipitation = soup.find_all("precipitation")
     prec_list = []
-
-    # x = list()
-    # y = list()
 
     if PRINT_DEBUG:
         print("\nPRECIPITATION\n")
@@ -137,26 +162,7 @@ def get_precipitation(trace_data):
     trace_data.append(trace)
 
 
-def partition_into_days(result):
-    """
-    Partition data into days, unused atm
-    """
-
-    days = [[]]
-    index = 0
-
-    # do this more efficiently
-    for time in result[0]:
-        if str(time)[11:] == "00:00:00" and days[index] != []:
-            days.append(list())
-            index += 1
-
-        days[index].append(time)
-
-    return days
-
-
-def plot_with_plotly():
+def plot_with_plotly(namespace, soup):
     """
     Plot temperature and precipitation data with plotly
     """
@@ -169,13 +175,13 @@ def plot_with_plotly():
         yaxis=dict(
             title="Temperature in °C"
         ),
-        title="Weather in <b>{}</b> ({}, {})".format(LOCATION, LATITUDE, LONGITUDE)
+        title="Weather in <b>{}</b> ({}, {})".format(namespace.name, namespace.coordinates[0], namespace.coordinates[1])
     )
 
     data = []
 
-    get_temperatures(data)
-    get_precipitation(data)
+    get_temperatures(data, soup)
+    get_precipitation(data, soup)
 
     if DRAW_PLOT:
         fig = go.Figure(data=data, layout=layout)
@@ -183,6 +189,13 @@ def plot_with_plotly():
 
 
 if __name__ == "__main__":
-    SOUP = parse_response(get_met_data())
+    namespace = parse_arguments()
+    
+    if namespace.address:
+        setattr(namespace, "name", " ".join(namespace.coordinates))
+        setattr(namespace, "coordinates", geocode("+".join(namespace.coordinates), GEOCODING_API_KEY))
+    else:
+        setattr(namespace, "name", reverse_geocode(namespace, GEOCODING_API_KEY))
 
-    plot_with_plotly()
+    soup = get_met_data(namespace)
+    plot_with_plotly(namespace, soup)
