@@ -18,7 +18,7 @@ from bs4 import BeautifulSoup
 import requests
 
 # debug flags
-PRINT_DEBUG = True
+PRINT_DEBUG = False
 DRAW_PLOT = True
 
 FILENAME = "temp-plot.html"
