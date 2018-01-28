@@ -18,7 +18,7 @@ from bs4 import BeautifulSoup
 import requests
 
 # debug flags
-PRINT_DEBUG = False
+PRINT_DEBUG = True
 DRAW_PLOT = True
 
 FILENAME = "temp-plot.html"
@@ -95,12 +95,12 @@ def get_temperatures(trace_data, soup):
     """
 
     temperatures = soup.find_all("temperature")
-    x = []
-    y = []
-    
+    keys = []
+    values = []
+
     for data in temperatures:
-        x.append(datetime.strptime(data.parent.parent["from"], FORMAT))
-        y.append(data["value"])
+        keys.append(data.parent.parent["from"])
+        values.append(data["value"])
 
         if PRINT_DEBUG:
             print(
@@ -114,8 +114,8 @@ def get_temperatures(trace_data, soup):
         print()
 
     trace = go.Scatter(
-        x=x,
-        y=y,
+        x=keys,
+        y=values,
         fill="tozeroy",
         name="Temperature",
         line=dict(shape="spline", color="orange")
@@ -135,7 +135,7 @@ def get_precipitation(trace_data, soup):
 
     for data in precipitation:
         if data["value"] != "0.0":
-            keys.append(datetime.strptime(data.parent.parent["from"], FORMAT))
+            keys.append(data.parent.parent["from"])
             values.append(data["value"])
 
         if PRINT_DEBUG:
