@@ -21,8 +21,9 @@ import requests
 PRINT_DEBUG = False
 DRAW_PLOT = True
 
-# 49.210722, 16.594185
-# NAME = "Brno"
+FILENAME = "temp-plot.html"
+
+# Brno: 49.210722, 16.594185
 
 # datetime format
 FORMAT = "%Y-%m-%dT%XZ"
@@ -34,7 +35,7 @@ METEO_URL = "http://api.met.no/weatherapi/locationforecastlts/1.3/?lat={};lon={}
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Fetch and plot weather forecast for given location.")
     parser.add_argument(
         "address",
         nargs="+",
@@ -93,15 +94,13 @@ def get_temperatures(trace_data, soup):
     Searches the XML tree for (time, temperature) data.
     """
 
-    if PRINT_DEBUG:
-        print("\nTEMPERATURE\n")
-
     temperatures = soup.find_all("temperature")
-    x = list()
-    y = list()
+    keys = []
+    values = []
+
     for data in temperatures:
-        x.append(datetime.strptime(data.parent.parent["from"], FORMAT))
-        y.append(data["value"])
+        keys.append(data.parent.parent["from"])
+        values.append(data["value"])
 
         if PRINT_DEBUG:
             print(
@@ -111,9 +110,12 @@ def get_temperatures(trace_data, soup):
                 sep='\t'
                 )
 
+    if PRINT_DEBUG:
+        print()
+
     trace = go.Scatter(
-        x=x,
-        y=y,
+        x=keys,
+        y=values,
         fill="tozeroy",
         name="Temperature",
         line=dict(shape="spline", color="orange")
@@ -128,37 +130,26 @@ def get_precipitation(trace_data, soup):
     """
 
     precipitation = soup.find_all("precipitation")
-    prec_list = []
-
-    if PRINT_DEBUG:
-        print("\nPRECIPITATION\n")
+    keys = []
+    values = []
 
     for data in precipitation:
-        prec_list.append(
-            (
-                datetime.strptime(data.parent.parent["from"], FORMAT),
-                datetime.strptime(data.parent.parent["to"], FORMAT),
-                data["value"]
-            )
-        )
+        if data["value"] != "0.0":
+            keys.append(data.parent.parent["from"])
+            values.append(data["value"])
 
-        # x.append(datetime.strptime(data.parent.parent["from"], FORMAT))
-        # y.append(data["value"])
-        """
         if PRINT_DEBUG:
-
             print(
                 datetime.strptime(data.parent.parent["from"], FORMAT),
                 datetime.strptime(data.parent.parent["to"], FORMAT),
                 data["value"],
                 sep='\t'
                 )
-        """
-    # TODO: sort list of tuples
+    
 
     trace = go.Bar(
-        x=[time[0] for time in prec_list],
-        y=[value[2] for value in prec_list],
+        x=keys,
+        y=values,
         opacity=1,
         name="Precipitation",
         marker=dict(
@@ -167,9 +158,10 @@ def get_precipitation(trace_data, soup):
     )
 
     trace_data.append(trace)
+    
 
 
-def plot_with_plotly(namespace, soup):
+def plot_with_plotly(namespace, data, soup):
     """
     Plot temperature and precipitation data with plotly
     """
@@ -182,22 +174,19 @@ def plot_with_plotly(namespace, soup):
         yaxis=dict(
             title="Temperature in °C"
         ),
-        title="Weather for <b>{}</b> ({}, {})".format(namespace.location, namespace.address[0], namespace.address[1])
+        title="Weather for <b>{}</b> ({}, {})".format(
+            namespace.location,
+            namespace.address[0],
+            namespace.address[1]
+        )
     )
 
-    data = []
-
-    get_temperatures(data, soup)
-    get_precipitation(data, soup)
-
-    if DRAW_PLOT:
-        fig = go.Figure(data=data, layout=layout)
-        py.offline.plot(fig, filename='temp-plot.html')
+    fig = go.Figure(data=data, layout=layout)
+    py.offline.plot(fig, filename=FILENAME)
 
 
 if __name__ == "__main__":
     namespace = parse_arguments()
-    print(namespace)
     
     if namespace.coordinates:
         setattr(namespace, "location", reverse_geocode(namespace, GEOCODING_API_KEY))
@@ -206,7 +195,11 @@ if __name__ == "__main__":
         setattr(namespace, "location", " ".join(namespace.address))
         setattr(namespace, "address", geocode("+".join(namespace.address), GEOCODING_API_KEY))
 
-    print(namespace)
-
     soup = get_met_data(namespace)
-    plot_with_plotly(namespace, soup)
+
+    data = []
+    get_temperatures(data, soup)
+    get_precipitation(data, soup)
+
+    if DRAW_PLOT:
+        plot_with_plotly(namespace, data, soup)
