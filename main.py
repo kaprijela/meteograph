@@ -21,8 +21,7 @@ import requests
 PRINT_DEBUG = False
 DRAW_PLOT = True
 
-# 49.210722, 16.594185
-# NAME = "Brno"
+# Brno: 49.210722, 16.594185
 
 # datetime format
 FORMAT = "%Y-%m-%dT%XZ"
@@ -34,7 +33,7 @@ METEO_URL = "http://api.met.no/weatherapi/locationforecastlts/1.3/?lat={};lon={}
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Fetch and plot weather forecast for given location.")
     parser.add_argument(
         "address",
         nargs="+",
