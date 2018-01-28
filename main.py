@@ -95,8 +95,9 @@ def get_temperatures(trace_data, soup):
     """
 
     temperatures = soup.find_all("temperature")
-    x = list()
-    y = list()
+    x = []
+    y = []
+    
     for data in temperatures:
         x.append(datetime.strptime(data.parent.parent["from"], FORMAT))
         y.append(data["value"])
@@ -173,7 +174,11 @@ def plot_with_plotly(namespace, data, soup):
         yaxis=dict(
             title="Temperature in °C"
         ),
-        title="Weather for <b>{}</b> ({}, {})".format(namespace.location, namespace.address[0], namespace.address[1])
+        title="Weather for <b>{}</b> ({}, {})".format(
+            namespace.location,
+            namespace.address[0],
+            namespace.address[1]
+        )
     )
 
     fig = go.Figure(data=data, layout=layout)
